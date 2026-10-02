@@ -14,7 +14,9 @@
     #time { font-size:12px; min-width:70px; text-align:center; }
     #enter-ar { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:999; background:rgba(0,0,0,0.8); color:white; padding:20px 30px; border-radius:12px; text-align:center; font-family:system-ui; }
     #enter-ar button { background:#4285f4; color:white; border:none; padding:12px 24px; border-radius:8px; font-size:16px; cursor:pointer; margin-top:10px; }
+    #enter-ar button:disabled { background:#888; cursor:not-allowed; }
     .hidden { display:none !important; }
+    #status { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:999; background:rgba(0,0,0,0.8); color:white; padding:10px 20px; border-radius:8px; font-family:system-ui; font-size:14px; }
   </style>
 </head>
 <body style="margin:0; overflow:hidden;">
@@ -23,20 +25,17 @@
       <video id="video360" src="video.mp4" poster="poster.jpg" loop muted playsinline crossorigin="anonymous" preload="metadata"></video>
     </a-assets>
     
-    <!-- 360° video sphere -->
     <a-videosphere src="#video360" rotation="0 180 0"></a-videosphere>
-    
-    <!-- Camera for AR -->
     <a-camera id="camera" position="0 1.6 0"></a-camera>
   </a-scene>
 
-  <!-- Enter AR button (required for user gesture) -->
+  <div id="status"></div>
+
   <div id="enter-ar">
     <p>Appuyez pour lancer l'expérience AR 360°</p>
     <button id="btnEnterAR">Entrer en AR</button>
   </div>
 
-  <!-- Video controls -->
   <div id="controls" class="hidden">
     <button id="btnPlay" onclick="v.play()" title="Play">▶</button>
     <button id="btnPause" onclick="v.pause()" title="Pause">⏸</button>
@@ -55,6 +54,13 @@
     const btnEnterAR = document.getElementById('btnEnterAR');
     const controls = document.getElementById('controls');
     const scene = document.querySelector('a-scene');
+    const statusEl = document.getElementById('status');
+
+    function log(msg) {
+      console.log('[AR]', msg);
+      statusEl.textContent = msg;
+      setTimeout(() => { statusEl.textContent = ''; }, 5000);
+    }
 
     v.addEventListener('loadedmetadata', () => { seek.max = v.duration; });
     v.addEventListener('timeupdate', () => {
@@ -66,31 +72,72 @@
     });
     v.addEventListener('ended', () => { v.currentTime = 0; v.play(); });
 
-    // Enter AR on button click (user gesture required)
-    btnEnterAR.addEventListener('click', async () => {
+    // Check WebXR support
+    async function checkXRSupport() {
+      if (!navigator.xr) {
+        log('WebXR non supporté sur ce navigateur');
+        btnEnterAR.disabled = true;
+        btnEnterAR.textContent = 'WebXR non supporté';
+        return false;
+      }
       try {
+        const supported = await navigator.xr.isSessionSupported('immersive-ar');
+        if (!supported) {
+          log('AR immersif non supporté sur cet appareil');
+          btnEnterAR.disabled = true;
+          btnEnterAR.textContent = 'AR non supporté';
+          return false;
+        }
+        log('AR supporté ✓');
+        return true;
+      } catch (e) {
+        log('Erreur détection AR: ' + e.message);
+        return false;
+      }
+    }
+
+    // Enter AR on button click
+    btnEnterAR.addEventListener('click', async () => {
+      btnEnterAR.disabled = true;
+      btnEnterAR.textContent = 'Chargement...';
+      log('Demande session AR...');
+
+      try {
+        // Initialize A-Frame renderer XR
         await scene.renderer.xr.enabled = true;
+        
         const session = await navigator.xr.requestSession('immersive-ar', {
-          requiredFeatures: ['local-floor', 'hit-test'],
-          optionalFeatures: ['dom-overlay'],
+          requiredFeatures: ['local-floor'],
+          optionalFeatures: ['hit-test', 'dom-overlay'],
           domOverlay: { root: document.body }
         });
+        
+        log('Session AR obtenue ✓');
         scene.renderer.xr.setSession(session);
         enterAR.classList.add('hidden');
         controls.classList.remove('hidden');
         v.play();
+        
       } catch (e) {
         console.error('AR session failed:', e);
-        alert('AR non supporté sur cet appareil/navigateur. Essayez Chrome Android ou Safari iOS 13+.');
+        log('Erreur AR: ' + e.message);
+        btnEnterAR.disabled = false;
+        btnEnterAR.textContent = 'Réessayer';
       }
     });
 
     // Handle session end
     scene.renderer.xr.addEventListener('sessionend', () => {
+      log('Session AR terminée');
       enterAR.classList.remove('hidden');
       controls.classList.add('hidden');
       v.pause();
+      btnEnterAR.disabled = false;
+      btnEnterAR.textContent = 'Entrer en AR';
     });
+
+    // Check support on load
+    checkXRSupport();
   </script>
 </body>
 </html>
