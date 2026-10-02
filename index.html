@@ -81,6 +81,7 @@
     let renderer, scene3d, camera, sphere, videoTexture;
     let useCamera = false;
     let orientationEnabled = false;
+    let iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     let targetQuat = new THREE.Quaternion();
     let currentQuat = new THREE.Quaternion();
     let animationId;
@@ -116,38 +117,53 @@
       });
     }
 
-    // Gyroscope handling - ONLY after user interaction
+    // iOS Gyroscope handling - uses webkitCompassHeading for absolute orientation
+    let iOSAlpha = 0, iOSBeta = 0, iOSGamma = 0;
+
     function onDeviceOrientation(e) {
       if (!orientationEnabled) return;
+      
+      if (iOS && e.webkitCompassHeading !== undefined) {
+        // iOS: webkitCompassHeading gives true north (0-360), more reliable than alpha
+        const heading = THREE.MathUtils.degToRad(e.webkitCompassHeading);
+        iOSAlpha = -heading; // Negative for correct rotation direction
+        iOSBeta = THREE.MathUtils.degToRad(e.beta || 0);
+        iOSGamma = THREE.MathUtils.degToRad(e.gamma || 0);
+      } else {
+        // Android / standard
+        iOSAlpha = -THREE.MathUtils.degToRad(e.alpha || 0);
+        iOSBeta = THREE.MathUtils.degToRad(e.beta || 0);
+        iOSGamma = THREE.MathUtils.degToRad(e.gamma || 0);
+      }
+      
       const q = new THREE.Quaternion();
-      q.setFromEuler(new THREE.Euler(
-        -THREE.MathUtils.degToRad(e.beta || 0),
-        -THREE.MathUtils.degToRad(e.alpha || 0),
-        -THREE.MathUtils.degToRad(e.gamma || 0),
-        'YXZ'
-      ));
+      q.setFromEuler(new THREE.Euler(-iOSBeta, iOSAlpha, -iOSGamma, 'YXZ'));
       targetQuat.copy(q);
     }
 
     function enableGyroscope() {
-      if (orientationEnabled) return; // Already enabled
+      if (orientationEnabled) return;
       
-      if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
-        // iOS 13+ - request permission on first user interaction
+      const requestPermission = typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission;
+      
+      if (requestPermission) {
+        // iOS 13+
         DeviceOrientationEvent.requestPermission().then(state => {
           if (state === 'granted') {
             window.addEventListener('deviceorientation', onDeviceOrientation);
             orientationEnabled = true;
-            log('Gyroscope activé (iOS)');
+            log('Gyroscope activé (iOS) - bougez le téléphone');
           } else {
-            log('Permission gyroscope refusée → mode tactile');
+            log('Permission refusée → mode tactile');
           }
         }).catch(() => log('Erreur permission gyroscope'));
-      } else {
-        // Android / others - no permission needed
+      } else if (window.DeviceOrientationEvent) {
+        // Android / others
         window.addEventListener('deviceorientation', onDeviceOrientation);
         orientationEnabled = true;
-        log('Gyroscope activé');
+        log('Gyroscope activé - bougez le téléphone');
+      } else {
+        log('Gyroscope non supporté → mode tactile');
       }
     }
 
@@ -190,11 +206,9 @@
 
     function updateCamera() {
       if (orientationEnabled) {
-        // Gyroscope controls camera
         currentQuat.slerp(targetQuat, 0.1);
         camera.quaternion.copy(currentQuat);
       } else {
-        // Touch/drag fallback
         const dragQuat = new THREE.Quaternion().setFromEuler(dragTarget);
         currentQuat.slerp(dragQuat, 0.05);
         camera.quaternion.copy(currentQuat);
@@ -248,14 +262,13 @@
       renderer.render(scene3d, camera);
     }
 
-    // Init - NO automatic permission requests
+    // Init
     async function init() {
       initThreeJS();
-      // Gyroscope will be enabled on first touch
       videoEl.load();
       videoEl.play().catch(() => log('Touchez l\'écran pour démarrer'));
       animate();
-      log('Prêt - Bougez le téléphone (gyro) ou glissez (tactile)');
+      log('Prêt - Touchez l\'écran pour activer gyroscope, puis bougez le téléphone');
     }
 
     init();
