@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Djenné 360° AR</title>
+  <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@1.5.0/dist/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/AR.js@3.4.0/aframe/build/aframe-ar.min.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    #controls { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:999; display:flex; gap:8px; align-items:center; background:rgba(0,0,0,0.7); padding:10px 15px; border-radius:30px; color:white; font-family:system-ui; }
+    #controls button { background:#fff; border:none; border-radius:50%; width:40px; height:40px; font-size:18px; cursor:pointer; }
+    #controls button:active { transform:scale(0.95); }
+    #seek { width:180px; accent-color:#fff; }
+    #time { font-size:12px; min-width:70px; text-align:center; }
+  </style>
+</head>
+<body style="margin:0; overflow:hidden;">
+  <a-scene embedded arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;">
+    <a-assets>
+      <video id="video360" src="video.mp4" poster="poster.jpg" loop muted playsinline crossorigin="anonymous" preload="metadata"></video>
+    </a-assets>
+    <a-videosphere src="#video360" rotation="0 180 0"></a-videosphere>
+    <a-camera></a-camera>
+  </a-scene>
+
+  <div id="controls">
+    <button id="btnPlay" onclick="v.play()" title="Play">▶</button>
+    <button id="btnPause" onclick="v.pause()" title="Pause">⏸</button>
+    <button onclick="v.currentTime=0; v.play()" title="Replay">⏮</button>
+    <input type="range" id="seek" min="0" max="60" step="1" value="0" oninput="v.currentTime=this.value">
+    <span id="time">0:00 / 1:00</span>
+  </div>
+
+  <script>
+    const v = document.getElementById('video360');
+    const seek = document.getElementById('seek');
+    const timeEl = document.getElementById('time');
+    const btnPlay = document.getElementById('btnPlay');
+    const btnPause = document.getElementById('btnPause');
+
+    v.addEventListener('loadedmetadata', () => { seek.max = v.duration; });
+    v.addEventListener('timeupdate', () => {
+      seek.value = v.currentTime;
+      const c = v.currentTime, d = v.duration;
+      timeEl.textContent = `${Math.floor(c/60)}:${String(Math.floor(c)%60).padStart(2,'0')} / ${Math.floor(d/60)}:${String(Math.floor(d)%60).padStart(2,'0')}`;
+      btnPlay.style.display = v.paused ? 'block' : 'none';
+      btnPause.style.display = v.paused ? 'none' : 'block';
+    });
+    v.addEventListener('ended', () => { v.currentTime = 0; v.play(); });
+  </script>
+</body>
+</html>
