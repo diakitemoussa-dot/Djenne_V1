@@ -20,7 +20,7 @@
   </style>
 </head>
 <body style="margin:0; overflow:hidden;">
-  <a-scene vr-mode-ui="enabled: false;">
+  <a-scene id="scene" vr-mode-ui="enabled: false;">
     <a-assets>
       <video id="video360" src="video.mp4" poster="poster.jpg" loop muted playsinline crossorigin="anonymous" preload="metadata"></video>
     </a-assets>
@@ -53,7 +53,7 @@
     const enterAR = document.getElementById('enter-ar');
     const btnEnterAR = document.getElementById('btnEnterAR');
     const controls = document.getElementById('controls');
-    const scene = document.querySelector('a-scene');
+    const scene = document.getElementById('scene');
     const statusEl = document.getElementById('status');
 
     function log(msg) {
@@ -96,6 +96,12 @@
       }
     }
 
+    // Wait for scene to be ready
+    scene.addEventListener('loaded', () => {
+      log('Scène chargée');
+      checkXRSupport();
+    });
+
     // Enter AR on button click
     btnEnterAR.addEventListener('click', async () => {
       btnEnterAR.disabled = true;
@@ -103,17 +109,10 @@
       log('Demande session AR...');
 
       try {
-        // Initialize A-Frame renderer XR
-        scene.renderer.xr.enabled = true;
-        
-        const session = await navigator.xr.requestSession('immersive-ar', {
-          requiredFeatures: ['local-floor'],
-          optionalFeatures: ['hit-test', 'dom-overlay'],
-          domOverlay: { root: document.body }
-        });
+        // Use A-Frame's built-in enterAR method
+        await scene.enterAR();
         
         log('Session AR obtenue ✓');
-        scene.renderer.xr.setSession(session);
         enterAR.classList.add('hidden');
         controls.classList.remove('hidden');
         v.play();
@@ -127,7 +126,7 @@
     });
 
     // Handle session end
-    scene.renderer.xr.addEventListener('sessionend', () => {
+    scene.addEventListener('exit-vr', () => {
       log('Session AR terminée');
       enterAR.classList.remove('hidden');
       controls.classList.add('hidden');
@@ -135,9 +134,6 @@
       btnEnterAR.disabled = false;
       btnEnterAR.textContent = 'Entrer en AR';
     });
-
-    // Check support on load
-    checkXRSupport();
   </script>
 </body>
 </html>
