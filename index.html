@@ -4,46 +4,29 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>Djenné 360° AR</title>
-  <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@1.5.0/dist/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@1.6.2/dist/aframe.min.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     #controls { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:999; display:flex; gap:8px; align-items:center; background:rgba(0,0,0,0.7); padding:10px 15px; border-radius:30px; color:white; font-family:system-ui; }
     #controls button { background:#fff; border:none; border-radius:50%; width:40px; height:40px; font-size:18px; cursor:pointer; }
-    #controls button:active { transform:scale(0.95); }
     #seek { width:180px; accent-color:#fff; }
     #time { font-size:12px; min-width:70px; text-align:center; }
-    #enter-ar { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:999; background:rgba(0,0,0,0.8); color:white; padding:20px 30px; border-radius:12px; text-align:center; font-family:system-ui; }
-    #enter-ar button { background:#4285f4; color:white; border:none; padding:12px 24px; border-radius:8px; font-size:16px; cursor:pointer; margin-top:10px; }
-    #enter-ar button:disabled { background:#888; cursor:not-allowed; }
-    .hidden { display:none !important; }
-    #status { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:999; background:rgba(0,0,0,0.8); color:white; padding:10px 20px; border-radius:8px; font-family:system-ui; font-size:14px; }
   </style>
 </head>
 <body style="margin:0; overflow:hidden;">
-  <a-scene id="scene" webxr="requiredFeatures: local-floor; optionalFeatures: hit-test, dom-overlay; domOverlayRoot: #overlay">
+  <a-scene webxr="requiredFeatures: local-floor; optionalFeatures: hit-test;">
     <a-assets>
       <video id="video360" src="video.mp4" poster="poster.jpg" loop muted playsinline crossorigin="anonymous" preload="metadata"></video>
     </a-assets>
-    
     <a-videosphere src="#video360" rotation="0 180 0"></a-videosphere>
-    <a-camera id="camera" position="0 1.6 0"></a-camera>
   </a-scene>
 
-  <div id="overlay">
-    <div id="status"></div>
-
-    <div id="enter-ar">
-      <p>Appuyez pour lancer l'expérience AR 360°</p>
-      <button id="btnEnterAR">Entrer en AR</button>
-    </div>
-
-    <div id="controls" class="hidden">
-      <button id="btnPlay" onclick="v.play()" title="Play">▶</button>
-      <button id="btnPause" onclick="v.pause()" title="Pause">⏸</button>
-      <button onclick="v.currentTime=0; v.play()" title="Replay">⏮</button>
-      <input type="range" id="seek" min="0" max="60" step="1" value="0" oninput="v.currentTime=this.value">
-      <span id="time">0:00 / 1:00</span>
-    </div>
+  <div id="controls" style="display:none;">
+    <button id="btnPlay" onclick="v.play()">▶</button>
+    <button id="btnPause" onclick="v.pause()">⏸</button>
+    <button onclick="v.currentTime=0; v.play()">⏮</button>
+    <input type="range" id="seek" min="0" max="60" step="1" value="0" oninput="v.currentTime=this.value">
+    <span id="time">0:00 / 1:00</span>
   </div>
 
   <script>
@@ -52,17 +35,8 @@
     const timeEl = document.getElementById('time');
     const btnPlay = document.getElementById('btnPlay');
     const btnPause = document.getElementById('btnPause');
-    const enterAR = document.getElementById('enter-ar');
-    const btnEnterAR = document.getElementById('btnEnterAR');
     const controls = document.getElementById('controls');
-    const scene = document.getElementById('scene');
-    const statusEl = document.getElementById('status');
-
-    function log(msg) {
-      console.log('[AR]', msg);
-      statusEl.textContent = msg;
-      setTimeout(() => { statusEl.textContent = ''; }, 5000);
-    }
+    const scene = document.querySelector('a-scene');
 
     v.addEventListener('loadedmetadata', () => { seek.max = v.duration; });
     v.addEventListener('timeupdate', () => {
@@ -72,113 +46,9 @@
       btnPlay.style.display = v.paused ? 'block' : 'none';
       btnPause.style.display = v.paused ? 'none' : 'block';
     });
-    v.addEventListener('ended', () => { v.currentTime = 0; v.play(); });
 
-    // Check WebXR support
-    async function checkXRSupport() {
-      if (!navigator.xr) {
-        log('WebXR non supporté sur ce navigateur');
-        btnEnterAR.disabled = true;
-        btnEnterAR.textContent = 'WebXR non supporté';
-        return false;
-      }
-      try {
-        const supported = await navigator.xr.isSessionSupported('immersive-ar');
-        if (!supported) {
-          log('AR immersif non supporté sur cet appareil');
-          btnEnterAR.disabled = true;
-          btnEnterAR.textContent = 'AR non supporté';
-          return false;
-        }
-        log('AR supporté ✓');
-        return true;
-      } catch (e) {
-        log('Erreur détection AR: ' + e.message);
-        return false;
-      }
-    }
-
-    let webxrComponent = null;
-    let rendererReady = false;
-
-    // Wait for scene to be ready
-    scene.addEventListener('loaded', () => {
-      log('Scène chargée');
-      checkXRSupport();
-      
-      // Get webxr component from scene element
-      webxrComponent = scene.components.webxr;
-      
-      // Wait for renderer to be ready
-      if (scene.renderer) {
-        rendererReady = true;
-      } else {
-        scene.addEventListener('render-target-loaded', () => {
-          rendererReady = true;
-          log('Renderer prêt');
-        });
-      }
-    });
-
-    // Enter AR on button click
-    btnEnterAR.addEventListener('click', async () => {
-      btnEnterAR.disabled = true;
-      btnEnterAR.textContent = 'Chargement...';
-      log('Demande session AR...');
-
-      try {
-        // Method 1: Use webxr component's enterAR if available
-        if (webxrComponent && typeof webxrComponent.enterAR === 'function') {
-          await webxrComponent.enterAR();
-        } 
-        // Method 2: Use scene.enterAR if available (A-Frame 1.4+)
-        else if (typeof scene.enterAR === 'function') {
-          await scene.enterAR();
-        }
-        // Method 3: Direct WebXR via renderer (wait for renderer)
-        else {
-          // Wait for renderer to be ready
-          let attempts = 0;
-          while (!rendererReady && attempts < 50) {
-            await new Promise(r => setTimeout(r, 100));
-            attempts++;
-          }
-          
-          if (!scene.renderer) {
-            throw new Error('Renderer non initialisé');
-          }
-          
-          scene.renderer.xr.enabled = true;
-          const session = await navigator.xr.requestSession('immersive-ar', {
-            requiredFeatures: ['local-floor'],
-            optionalFeatures: ['hit-test', 'dom-overlay'],
-            domOverlay: { root: document.getElementById('overlay') }
-          });
-          scene.renderer.xr.setSession(session);
-        }
-        
-        log('Session AR obtenue ✓');
-        enterAR.classList.add('hidden');
-        controls.classList.remove('hidden');
-        v.play();
-        
-      } catch (e) {
-        console.error('AR session failed:', e);
-        log('Erreur AR: ' + e.message);
-        btnEnterAR.disabled = false;
-        btnEnterAR.textContent = 'Réessayer';
-      }
-    });
-
-    // Handle session end
-    scene.addEventListener('exit-vr', () => {
-      log('Session AR terminée');
-      enterAR.classList.remove('hidden');
-      controls.classList.add('hidden');
-      v.pause();
-      btnEnterAR.disabled = false;
-      btnEnterAR.textContent = 'Entrer en AR';
-    });
+    scene.addEventListener('enter-vr', () => { controls.style.display = 'flex'; v.play(); });
+    scene.addEventListener('exit-vr', () => { controls.style.display = 'none'; v.pause(); });
   </script>
 </body>
 </html>
