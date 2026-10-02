@@ -20,7 +20,7 @@
   </style>
 </head>
 <body style="margin:0; overflow:hidden;">
-  <a-scene id="scene" vr-mode-ui="enabled: false;" renderer="xrCompatible: true;">
+  <a-scene id="scene" webxr="requiredFeatures: local-floor; optionalFeatures: hit-test, dom-overlay; domOverlayRoot: #overlay">
     <a-assets>
       <video id="video360" src="video.mp4" poster="poster.jpg" loop muted playsinline crossorigin="anonymous" preload="metadata"></video>
     </a-assets>
@@ -29,19 +29,21 @@
     <a-camera id="camera" position="0 1.6 0"></a-camera>
   </a-scene>
 
-  <div id="status"></div>
+  <div id="overlay">
+    <div id="status"></div>
 
-  <div id="enter-ar">
-    <p>Appuyez pour lancer l'expérience AR 360°</p>
-    <button id="btnEnterAR">Entrer en AR</button>
-  </div>
+    <div id="enter-ar">
+      <p>Appuyez pour lancer l'expérience AR 360°</p>
+      <button id="btnEnterAR">Entrer en AR</button>
+    </div>
 
-  <div id="controls" class="hidden">
-    <button id="btnPlay" onclick="v.play()" title="Play">▶</button>
-    <button id="btnPause" onclick="v.pause()" title="Pause">⏸</button>
-    <button onclick="v.currentTime=0; v.play()" title="Replay">⏮</button>
-    <input type="range" id="seek" min="0" max="60" step="1" value="0" oninput="v.currentTime=this.value">
-    <span id="time">0:00 / 1:00</span>
+    <div id="controls" class="hidden">
+      <button id="btnPlay" onclick="v.play()" title="Play">▶</button>
+      <button id="btnPause" onclick="v.pause()" title="Pause">⏸</button>
+      <button onclick="v.currentTime=0; v.play()" title="Replay">⏮</button>
+      <input type="range" id="seek" min="0" max="60" step="1" value="0" oninput="v.currentTime=this.value">
+      <span id="time">0:00 / 1:00</span>
+    </div>
   </div>
 
   <script>
@@ -102,21 +104,27 @@
       checkXRSupport();
     });
 
-    // Enter AR on button click
+    // Enter AR on button click - use A-Frame's webxr component
     btnEnterAR.addEventListener('click', async () => {
       btnEnterAR.disabled = true;
       btnEnterAR.textContent = 'Chargement...';
       log('Demande session AR...');
 
       try {
-        // Direct WebXR session via three.js renderer
-        scene.renderer.xr.enabled = true;
-        const session = await navigator.xr.requestSession('immersive-ar', {
-          requiredFeatures: ['local-floor'],
-          optionalFeatures: ['hit-test', 'dom-overlay'],
-          domOverlay: { root: document.body }
-        });
-        scene.renderer.xr.setSession(session);
+        // Use A-Frame's webxr component to enter AR
+        const webxr = scene.systems.webxr;
+        if (webxr && webxr.enterAR) {
+          await webxr.enterAR();
+        } else {
+          // Fallback: use the session directly
+          scene.renderer.xr.enabled = true;
+          const session = await navigator.xr.requestSession('immersive-ar', {
+            requiredFeatures: ['local-floor'],
+            optionalFeatures: ['hit-test', 'dom-overlay'],
+            domOverlay: { root: document.getElementById('overlay') }
+          });
+          scene.renderer.xr.setSession(session);
+        }
         
         log('Session AR obtenue ✓');
         enterAR.classList.add('hidden');
@@ -132,7 +140,7 @@
     });
 
     // Handle session end
-    scene.renderer.xr.addEventListener('sessionend', () => {
+    scene.addEventListener('exit-vr', () => {
       log('Session AR terminée');
       enterAR.classList.remove('hidden');
       controls.classList.add('hidden');
