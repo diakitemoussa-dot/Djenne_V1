@@ -104,7 +104,7 @@
 
       try {
         // Initialize A-Frame renderer XR
-        await scene.renderer.xr.enabled = true;
+        scene.renderer.xr.enabled = true;
         
         const session = await navigator.xr.requestSession('immersive-ar', {
           requiredFeatures: ['local-floor'],
