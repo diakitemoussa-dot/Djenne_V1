@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>Djenné 360° AR</title>
   <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@1.5.0/dist/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/AR.js@3.4.0/aframe/build/aframe-ar.min.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     #controls { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:999; display:flex; gap:8px; align-items:center; background:rgba(0,0,0,0.7); padding:10px 15px; border-radius:30px; color:white; font-family:system-ui; }
@@ -13,18 +12,32 @@
     #controls button:active { transform:scale(0.95); }
     #seek { width:180px; accent-color:#fff; }
     #time { font-size:12px; min-width:70px; text-align:center; }
+    #enter-ar { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:999; background:rgba(0,0,0,0.8); color:white; padding:20px 30px; border-radius:12px; text-align:center; font-family:system-ui; }
+    #enter-ar button { background:#4285f4; color:white; border:none; padding:12px 24px; border-radius:8px; font-size:16px; cursor:pointer; margin-top:10px; }
+    .hidden { display:none !important; }
   </style>
 </head>
 <body style="margin:0; overflow:hidden;">
-  <a-scene embedded arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;">
+  <a-scene vr-mode-ui="enabled: false;">
     <a-assets>
       <video id="video360" src="video.mp4" poster="poster.jpg" loop muted playsinline crossorigin="anonymous" preload="metadata"></video>
     </a-assets>
+    
+    <!-- 360° video sphere -->
     <a-videosphere src="#video360" rotation="0 180 0"></a-videosphere>
-    <a-camera></a-camera>
+    
+    <!-- Camera for AR -->
+    <a-camera id="camera" position="0 1.6 0"></a-camera>
   </a-scene>
 
-  <div id="controls">
+  <!-- Enter AR button (required for user gesture) -->
+  <div id="enter-ar">
+    <p>Appuyez pour lancer l'expérience AR 360°</p>
+    <button id="btnEnterAR">Entrer en AR</button>
+  </div>
+
+  <!-- Video controls -->
+  <div id="controls" class="hidden">
     <button id="btnPlay" onclick="v.play()" title="Play">▶</button>
     <button id="btnPause" onclick="v.pause()" title="Pause">⏸</button>
     <button onclick="v.currentTime=0; v.play()" title="Replay">⏮</button>
@@ -38,6 +51,10 @@
     const timeEl = document.getElementById('time');
     const btnPlay = document.getElementById('btnPlay');
     const btnPause = document.getElementById('btnPause');
+    const enterAR = document.getElementById('enter-ar');
+    const btnEnterAR = document.getElementById('btnEnterAR');
+    const controls = document.getElementById('controls');
+    const scene = document.querySelector('a-scene');
 
     v.addEventListener('loadedmetadata', () => { seek.max = v.duration; });
     v.addEventListener('timeupdate', () => {
@@ -48,6 +65,32 @@
       btnPause.style.display = v.paused ? 'none' : 'block';
     });
     v.addEventListener('ended', () => { v.currentTime = 0; v.play(); });
+
+    // Enter AR on button click (user gesture required)
+    btnEnterAR.addEventListener('click', async () => {
+      try {
+        await scene.renderer.xr.enabled = true;
+        const session = await navigator.xr.requestSession('immersive-ar', {
+          requiredFeatures: ['local-floor', 'hit-test'],
+          optionalFeatures: ['dom-overlay'],
+          domOverlay: { root: document.body }
+        });
+        scene.renderer.xr.setSession(session);
+        enterAR.classList.add('hidden');
+        controls.classList.remove('hidden');
+        v.play();
+      } catch (e) {
+        console.error('AR session failed:', e);
+        alert('AR non supporté sur cet appareil/navigateur. Essayez Chrome Android ou Safari iOS 13+.');
+      }
+    });
+
+    // Handle session end
+    scene.renderer.xr.addEventListener('sessionend', () => {
+      enterAR.classList.remove('hidden');
+      controls.classList.add('hidden');
+      v.pause();
+    });
   </script>
 </body>
 </html>
