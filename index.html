@@ -12,20 +12,17 @@
     #seek { width:180px; accent-color:#fff; }
     #time { font-size:12px; min-width:70px; text-align:center; }
     #debug { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:9999; background:rgba(0,0,0,0.9); color:#0f0; padding:10px 15px; border-radius:8px; font-family:monospace; font-size:12px; max-width:90%; text-align:center; }
-    #enter-ar-btn { position:fixed; bottom:90px; left:50%; transform:translateX(-50%); z-index:999; background:#4285f4; color:white; border:none; padding:12px 24px; border-radius:8px; font-size:16px; cursor:pointer; display:none; }
   </style>
 </head>
 <body style="margin:0; overflow:hidden;">
-  <a-scene id="scene">
+  <a-scene id="scene" webxr="requiredFeatures: local-floor; optionalFeatures: hit-test;">
     <a-assets>
       <video id="video360" src="video.mp4" poster="poster.jpg" loop muted playsinline crossorigin="anonymous" preload="metadata"></video>
     </a-assets>
-    <a-videosphere id="sphere" src="#video360" rotation="0 180 0"></a-videosphere>
-    <a-camera id="camera" position="0 1.6 0" look-controls="enabled: true"></a-camera>
+    <a-videosphere src="#video360" rotation="0 180 0"></a-videosphere>
   </a-scene>
 
   <div id="debug"></div>
-  <button id="enter-ar-btn">Entrer en AR</button>
 
   <div id="controls" style="display:flex;">
     <button id="btnPlay" onclick="v.play()">▶</button>
@@ -43,9 +40,7 @@
     const btnPause = document.getElementById('btnPause');
     const controls = document.getElementById('controls');
     const scene = document.getElementById('scene');
-    const sphere = document.getElementById('sphere');
     const debug = document.getElementById('debug');
-    const enterARBtn = document.getElementById('enter-ar-btn');
 
     function log(msg) {
       console.log('[AR]', msg);
@@ -67,13 +62,21 @@
       btnPause.style.display = v.paused ? 'none' : 'block';
     });
 
+    // A-Frame gère l'AR nativement - on montre/cache juste les contrôles
+    scene.addEventListener('enter-vr', () => { 
+      controls.style.display = 'flex'; 
+      v.play(); 
+      log('Session AR/VR démarrée');
+    });
+    scene.addEventListener('exit-vr', () => { 
+      controls.style.display = 'flex'; // Garder contrôles en mode 360°
+      log('Session AR/VR terminée');
+    });
+
     // Check WebXR support
-    let webxrSupported = false;
     if (navigator.xr) {
       navigator.xr.isSessionSupported('immersive-ar').then(supported => {
-        webxrSupported = supported;
-        log('WebXR AR: ' + (supported ? 'SUPPORTÉ ✓' : 'NON SUPPORTÉ'));
-        if (supported) enterARBtn.style.display = 'block';
+        log('WebXR AR: ' + (supported ? 'SUPPORTÉ ✓' : 'NON SUPPORTÉ (mode 360° seulement)'));
       }).catch(e => log('WebXR check failed: ' + e.message));
     } else {
       log('WebXR non disponible');
@@ -82,38 +85,6 @@
     // Force video load and play
     v.load();
     v.play().catch(e => log('Autoplay blocked: ' + e.message));
-
-    // Enter AR button click
-    enterARBtn.addEventListener('click', async () => {
-      enterARBtn.disabled = true;
-      enterARBtn.textContent = 'Chargement...';
-      log('Demande session AR...');
-
-      try {
-        scene.setAttribute('webxr', 'requiredFeatures: local-floor; optionalFeatures: hit-test;');
-        const webxr = scene.components.webxr;
-        if (webxr && typeof webxr.enterAR === 'function') {
-          await webxr.enterAR();
-        } else if (typeof scene.enterAR === 'function') {
-          await scene.enterAR();
-        } else {
-          throw new Error('enterAR non disponible');
-        }
-        log('Session AR démarrée');
-        controls.style.display = 'flex';
-      } catch (e) {
-        console.error('AR session failed:', e);
-        log('Erreur AR: ' + e.message);
-        enterARBtn.disabled = false;
-        enterARBtn.textContent = 'Réessayer';
-      }
-    });
-
-    scene.addEventListener('exit-vr', () => {
-      log('Session AR terminée');
-      enterARBtn.disabled = false;
-      enterARBtn.textContent = 'Entrer en AR';
-    });
   </script>
 </body>
 </html>
