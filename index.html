@@ -98,25 +98,56 @@
       }
     }
 
+    let webxrComponent = null;
+    let rendererReady = false;
+
     // Wait for scene to be ready
     scene.addEventListener('loaded', () => {
       log('Scène chargée');
       checkXRSupport();
+      
+      // Get webxr component from scene element
+      webxrComponent = scene.components.webxr;
+      
+      // Wait for renderer to be ready
+      if (scene.renderer) {
+        rendererReady = true;
+      } else {
+        scene.addEventListener('render-target-loaded', () => {
+          rendererReady = true;
+          log('Renderer prêt');
+        });
+      }
     });
 
-    // Enter AR on button click - use A-Frame's webxr component
+    // Enter AR on button click
     btnEnterAR.addEventListener('click', async () => {
       btnEnterAR.disabled = true;
       btnEnterAR.textContent = 'Chargement...';
       log('Demande session AR...');
 
       try {
-        // Use A-Frame's webxr component to enter AR
-        const webxr = scene.systems.webxr;
-        if (webxr && webxr.enterAR) {
-          await webxr.enterAR();
-        } else {
-          // Fallback: use the session directly
+        // Method 1: Use webxr component's enterAR if available
+        if (webxrComponent && typeof webxrComponent.enterAR === 'function') {
+          await webxrComponent.enterAR();
+        } 
+        // Method 2: Use scene.enterAR if available (A-Frame 1.4+)
+        else if (typeof scene.enterAR === 'function') {
+          await scene.enterAR();
+        }
+        // Method 3: Direct WebXR via renderer (wait for renderer)
+        else {
+          // Wait for renderer to be ready
+          let attempts = 0;
+          while (!rendererReady && attempts < 50) {
+            await new Promise(r => setTimeout(r, 100));
+            attempts++;
+          }
+          
+          if (!scene.renderer) {
+            throw new Error('Renderer non initialisé');
+          }
+          
           scene.renderer.xr.enabled = true;
           const session = await navigator.xr.requestSession('immersive-ar', {
             requiredFeatures: ['local-floor'],
